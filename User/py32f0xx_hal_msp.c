@@ -54,53 +54,29 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *hspi)
   __HAL_RCC_GPIOA_CLK_ENABLE(); /* GPIOA clock enable */
   __HAL_RCC_SPI1_CLK_ENABLE();  /* SPI1 clock enable */
 
-  // /*
-  //   PB2   ------> SCK
-  //   PA1   ------> MISO
-  //   PA7   ------> MOSI
-  //   PA6   ------> NSS
-  // */
-  // PB1 -> device 6 / clck
-  // PB2 -> device 2 / SO
-  // PB0 -> device 5 / SI
-  // pa4 -> device 1 / CS
-
   /*SCK*/
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  if (hspi->Init.CLKPolarity == SPI_POLARITY_LOW)
-  {
-    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  }
-  else
-  {
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-  }
+  /* SCK = PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF0_SPI1;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* SPI NSS*/
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL; // No pull needed for driven clock
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF0_SPI1;
+  GPIO_InitStruct.Alternate = GPIO_AF0_SPI1; // Confirm AF0 in datasheet
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* MISO/MOSI*/
-  GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_0;
+  /* MOSI = PA7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF0_SPI1;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  // PA0 - LED
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH; // Added speed configuration
+  GPIO_InitStruct.Alternate = GPIO_AF0_SPI1;         // Confirm AF0 in datasheet
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* MISO = PA6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP; // Explicitly set as input
+  GPIO_InitStruct.Pull = GPIO_NOPULL;     // Adjust pull if needed (e.g., GPIO_PULLDOWN or GPIO_PULLUP)
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* Interrupt Configuration */
   HAL_NVIC_SetPriority(SPI1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(SPI1_IRQn);
@@ -117,8 +93,8 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef *hspi)
 
   /* Turn off peripherals and GPIO clock */
   /* Unconfigure SPI SCK*/
-  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_2);
-  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6 | GPIO_PIN_1 | GPIO_PIN_7);
+  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
+  HAL_GPIO_DeInit(GPIOA, GPIO_PIN_4 | GPIO_PIN_6 | GPIO_PIN_7);
 
   HAL_NVIC_DisableIRQ(SPI1_IRQn);
 }

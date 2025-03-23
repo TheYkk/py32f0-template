@@ -85,7 +85,8 @@ HAL_StatusTypeDef FLASH_PageProgram(uint32_t address, uint8_t *data, uint16_t le
 HAL_StatusTypeDef FLASH_ReadData(uint32_t address, uint8_t *data, uint16_t len)
 {
   HAL_StatusTypeDef status = HAL_OK;
-  uint8_t cmd = 0x03; // READ command code [cite: 39]
+  uint8_t cmd = 0x03; // READ LOW POWER
+  // uint8_t cmd = 0x0B; // READ FAST command code [cite: 39]
 
   FLASH_CS_Low();
 
@@ -103,58 +104,57 @@ HAL_StatusTypeDef FLASH_ReadData(uint32_t address, uint8_t *data, uint16_t len)
 
   return status;
 }
+// Replace your current ID reading code with this:
+void ReadFlashID(uint8_t *id_buffer)
+{
+  uint8_t cmd = 0x9F; // RDID command
 
+  FLASH_CS_Low();
+
+  // Send only the command byte
+  HAL_SPI_Transmit(&spi1Handle, &cmd, 1, HAL_MAX_DELAY);
+
+  // Then receive the ID bytes separately
+  HAL_SPI_Receive(&spi1Handle, id_buffer, 3, HAL_MAX_DELAY);
+
+  FLASH_CS_High();
+}
 int main(void)
 {
   HAL_Init();
-  APP_SPI_Config();
   BSP_USART_Config();
-  printf("PY32F0xx ZD25LD40B Flash Demo\r\nSystem Clock: %ld\r\n", SystemCoreClock);
+  HAL_Delay(4000);
+  GPIO_InitTypeDef GPIO_CSInitStruct;
+  GPIO_CSInitStruct.Pin = GPIO_PIN_4;
+  GPIO_CSInitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_CSInitStruct.Pull = GPIO_NOPULL;
+  GPIO_CSInitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_CSInitStruct);
+  FLASH_CS_High(); // Initialize CS pin to high (inactive)
 
-  uint8_t flash_id[3];
+  APP_SPI_Config();
 
   // Read Flash ID
-  FLASH_CS_Low();
-  uint8_t cmd_rdid = 0x9F; // RDID command [cite: 43, 44]
-  HAL_SPI_Transmit(&spi1Handle, &cmd_rdid, 1, HAL_MAX_DELAY);
-  HAL_SPI_Receive(&spi1Handle, flash_id, 3, HAL_MAX_DELAY);
-  FLASH_CS_High();
-
-  printf("Flash ID: %02X %02X %02X\r\n", flash_id[0], flash_id[1], flash_id[2]);
-
-  // {
-  //   char msg[256];
-  //   snprintf(msg, sizeof(msg),
-  //            "Manufacturer ID: 0x%02X\r\n"
-  //            "Device ID (byte 1): 0x%02X\r\n"
-  //            "Device ID (byte 2): 0x%02X\r\n"
-  //            "Extended device information (EDI) string length: 0x%02X\r\n"
-  //            "EDI byte 1: 0x%02X\r\n"
-  //            "--------\r\n",
-  //            devid_res[0], devid_res[1], devid_res[2], devid_res[3], devid_res[4]);
-  //   HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
-  // }
-
+  uint8_t id_buffer[3] = {0};
+  ReadFlashID(id_buffer);
+  printf("Flash ID (separate): %02X %02X %02X\r\n",
+         id_buffer[0], id_buffer[1], id_buffer[2]);
   // Sample Write and Read
-  uint32_t test_address = 0x000000;
+  uint32_t test_address = 0x000100;
   uint8_t write_data[16] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
                             0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
   uint8_t read_data[16] = {0};
 
   // Write data to flash
-  if (FLASH_PageProgram(test_address, write_data, sizeof(write_data)) == HAL_OK)
-  {
-    printf("Write successful\r\n");
-  }
-  else
-  {
-    printf("Write failed\r\n");
-  }
+  // if (FLASH_PageProgram(test_address, write_data, sizeof(write_data)) != HAL_OK)
+  // {
+  //   printf("Write failed\r\n");
+  // }
+  // FLASH_WaitForReady(); // Wait for write to complete
 
   // Read data from flash
   if (FLASH_ReadData(test_address, read_data, sizeof(read_data)) == HAL_OK)
   {
-    printf("Read successful\r\n");
     printf("Read Data: ");
     for (int i = 0; i < sizeof(read_data); i++)
     {
@@ -166,7 +166,14 @@ int main(void)
   {
     printf("Read failed\r\n");
   }
+  GPIO_InitTypeDef GPIO_InitStruct;
 
+  // PA0 - LED
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
   while (1)
   {
     HAL_Delay(1000);
@@ -178,19 +185,15 @@ int main(void)
 static void APP_SPI_Config(void)
 {
   spi1Handle.Instance = SPI1;
-  spi1Handle.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4; // Adjust as needed
+  spi1Handle.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8; // Adjust as needed
   spi1Handle.Init.Direction = SPI_DIRECTION_2LINES;            // Use 2 lines for full duplex [cite: 357, 358]
   spi1Handle.Init.CLKPolarity = SPI_POLARITY_LOW;              // Check datasheet for correct polarity [cite: 355, 356]
   spi1Handle.Init.CLKPhase = SPI_PHASE_1EDGE;                  // Check datasheet for correct phase [cite: 355, 356]
   spi1Handle.Init.DataSize = SPI_DATASIZE_8BIT;
   spi1Handle.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  spi1Handle.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  spi1Handle.Init.NSS = SPI_NSS_SOFT;
   spi1Handle.Init.Mode = SPI_MODE_MASTER;
-  if (HAL_SPI_DeInit(&spi1Handle) != HAL_OK)
-  {
-    APP_ErrorHandler();
-  }
-
+  /* SPI initialization */
   if (HAL_SPI_Init(&spi1Handle) != HAL_OK)
   {
     APP_ErrorHandler();
